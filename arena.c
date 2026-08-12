@@ -17,7 +17,7 @@
    cells of the background and cost nothing per frame, which is why there is
    room for enough of them that the gems of a good fight are all still there to
    be walked over. */
-#define ENEMIES 6
+#define ENEMIES 8
 #define BLADES  2
 #define DROPS   12
 
