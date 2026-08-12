@@ -6,8 +6,8 @@ only lasts inside the run.
 
 ## Open and run
 
-The project is an editor folder: open in
-dotmatrix and hit run. Without the editor, you can build the ROM directly:
+The project is an editor folder: open it in dotmatrix and hit run. Without the editor,
+you can build the ROM directly:
 
 ```bash
 npx tsx scripts/build-rom.mts ../pixel-reaper/main.c ../pixel-reaper/pixel-reaper.gb
@@ -47,12 +47,24 @@ cursor, 17 skull.
 
 ## Decisions worth knowing before you touch anything
 
-**The frame budget is sprites.** Measured in the emulator, each `obj()` costs around
-3300 cycles: 10 sprites in a frame already push the end of `draw()` to line 93 of 154.
-That is why the pools are small (`ENEMIES` and `BLADES` in `arena.c`, plus the hero) and
-the rest of the game fits in what is left. Raising `ENEMIES` is the first thing that
-drops the frame rate: with the arena full, 5 enemies measured about 6% of frames lost,
-6 about 10%, and 8 goes past 20%.
+**The frame budget is sprites.** Everything that is not drawing already spends about 119
+of the frame's 154 lines, and each sprite on screen costs roughly 7 more. That is why the
+pools are small (`ENEMIES` and `BLADES` in `arena.c`, plus the hero): what is left over is
+about five sprites' worth of room, and `ENEMIES` is the knob that spends it.
+
+Measured headless in binjgb, walking the reaper through a full late arena for 60 seconds
+with the run clock pinned at 400 s, reading the worst frame of each second:
+
+| `ENEMIES` | worst frame, typical second | frames lost |
+| --- | --- | --- |
+| 2 | 119 of 154 | 0.2% |
+| 6 | 123 of 154 | 2.9% |
+| 8 | 140 of 154 | 3.1% |
+| 10 | 153 of 154 | 11.9% |
+
+The cliff is between 8 and 10, not between 6 and 8: at 8 the game still holds 60 Hz
+nearly all the time, but with 14 lines to spare. Anything added to the frame after this
+is measured against those 14 lines.
 
 **What a kill leaves behind lands in the background, not in a sprite.** Gems, hearts and
 gold are map cells written with `set_tile`, and the original tile comes back when the
