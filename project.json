@@ -1,0 +1,12 @@
+{
+  "format": 4,
+  "name": "Pixel Reaper",
+  "color": "off",
+  "text": true,
+  "author": "",
+  "files": [
+    "main.c",
+    "arena.c",
+    "cards.c"
+  ]
+}

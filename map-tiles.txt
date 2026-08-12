@@ -1,0 +1,5 @@
+# dotmatrix map tile sheets
+# one sheet per map, in the order the maps are in
+# a map that brings no tiles of its own is a header with nothing under it
+
+sheet 0

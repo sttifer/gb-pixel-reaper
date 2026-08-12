@@ -1,0 +1,18 @@
+# dotmatrix music
+# a slot names an effect from the bank, and "." leaves that channel silent
+# "loop N" repeats the song from position N of its order, so what comes before is an intro
+
+song 0
+order 0
+
+pattern 0
+  slots . 11 8 .
+
+song 1
+order 0 1
+
+pattern 0
+  slots . 9 8 10
+
+pattern 1
+  slots . 11 8 10

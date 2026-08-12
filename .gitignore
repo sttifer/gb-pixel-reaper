@@ -1,0 +1,6 @@
+# The ROM the editor writes beside the project: it is built from everything
+# else here, so it is output rather than source.
+build/
+*.gb
+*.gbc
+*.sav

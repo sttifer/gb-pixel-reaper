@@ -1,0 +1,25 @@
+# dotmatrix palettes
+# four colours per palette, written as RGB hex
+# the hardware keeps five bits per channel, so values are rounded to that grid
+# a shades line is the grey each tile number shows where there is no colour
+
+shades bkg  3 1 2 0
+shades obj  0 1 2 0
+
+bkg 0  FFFFFF ADADAD 525252 000000
+bkg 1  FFFFFF ADADAD 525252 000000
+bkg 2  FFFFFF ADADAD 525252 000000
+bkg 3  FFFFFF ADADAD 525252 000000
+bkg 4  FFFFFF ADADAD 525252 000000
+bkg 5  FFFFFF ADADAD 525252 000000
+bkg 6  FFFFFF ADADAD 525252 000000
+bkg 7  FFFFFF ADADAD 525252 000000
+
+obj 0  FFFFFF ADADAD 525252 000000
+obj 1  FFFFFF ADADAD 525252 000000
+obj 2  FFFFFF ADADAD 525252 000000
+obj 3  FFFFFF ADADAD 525252 000000
+obj 4  FFFFFF ADADAD 525252 000000
+obj 5  FFFFFF ADADAD 525252 000000
+obj 6  FFFFFF ADADAD 525252 000000
+obj 7  FFFFFF ADADAD 525252 000000
