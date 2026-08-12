@@ -1,89 +1,92 @@
 # Pixel Reaper
 
-Auto battler de sobrevivência para Game Boy (DMG), feito como projeto do dotmatrix.
-Uma run vai do título ao game over ou à vitória em 10 minutos, com progressão por
-cartas válida só dentro da run.
+A survival auto battler for the Game Boy (DMG), built as a dotmatrix project. A run goes
+from the title screen to game over or victory in 10 minutes, with card progression that
+only lasts inside the run.
 
-## Abrir e rodar
+## Open and run
 
-O projeto é uma pasta do editor: abra no dotmatrix
-e rode. Sem o editor, dá para compilar a ROM direto:
+The project is an editor folder: open in
+dotmatrix and hit run. Without the editor, you can build the ROM directly:
 
 ```bash
 npx tsx scripts/build-rom.mts ../pixel-reaper/main.c ../pixel-reaper/pixel-reaper.gb
 ```
 
-(a partir da pasta do dotmatrix; a ROM sai com 32 KB.)
+(from the dotmatrix folder; the ROM comes out at 32 KB.)
 
-## Controles
+## Controls
 
-| Botão | Ação |
+| Button | Action |
 | --- | --- |
-| D-pad | move em 8 direções |
-| A | confirma (título, carta, pausa, fim de run) |
-| B | volta ao menu no fim da run, sai da pausa |
-| START | pausa, e começa a run no título |
+| D-pad | move in 8 directions |
+| A | confirm (title, card, pause, end of run) |
+| B | back to the menu at the end of a run, leave the pause screen |
+| START | pause, and start the run from the title |
 
-O ataque é automático: a foice sai sozinha na direção do inimigo mais próximo.
+The attack is automatic: the scythe flies on its own towards the nearest enemy.
 
-## Arquivos
+## Files
 
-| Arquivo | O que é |
+| File | What it is |
 | --- | --- |
-| `main.c` | máquina de estados das seis telas, HUD, relógio da run |
-| `arena.c` | herói, horda, lâminas, drops, spawn e desenho |
-| `cards.c` | as sete cartas: nome, texto e o que cada uma altera |
-| `tiles.txt` | arte 8x8, propositalmente tosca, para você desenhar por cima |
-| `map.txt` | a arena, 32x32 tiles, com parede na borda |
-| `sfx.txt` | 8 efeitos do jogo e 4 usados só pela música |
-| `music.txt` | duas músicas: menu (song 0) e run (song 1) |
+| `main.c` | state machine for the six screens, HUD, run clock |
+| `arena.c` | hero, horde, blades, drops, spawning and drawing |
+| `cards.c` | the seven cards: name, text and what each one changes |
+| `tiles.txt` | 8x8 art, deliberately rough, for you to draw over |
+| `map.txt` | the arena, 32x32 tiles, walled at the edge |
+| `map-tiles.txt` | tiles belonging to the map itself (empty here) |
+| `font.txt` | the text tiles the HUD and menus print with |
+| `palettes.txt` | the four DMG shades the editor draws with |
+| `sfx.txt` | 8 game effects plus 4 used only by the music |
+| `music.txt` | two songs: menu (song 0) and run (song 1) |
 
-Tiles: 0 vazio, 1-3 chão, 4 parede, 5 lâmina, 6 gema de XP, 7 cura, 8-9 herói
-(parado e andando), 10-12 inimigos (comum, rápido, tanque), 13 ouro, 14-15 barra
-cheia e vazia, 16 cursor, 17 caveira.
+Tiles: 0 empty, 1-3 floor, 4 wall, 5 blade, 6 XP gem, 7 heal, 8-9 hero (standing and
+walking), 10-12 enemies (common, fast, tank), 13 gold, 14-15 bar full and empty, 16
+cursor, 17 skull.
 
-## Decisões que valem saber antes de mexer
+## Decisions worth knowing before you touch anything
 
-**O orçamento de frame é sprite.** Medindo no emulador, cada `obj()` custa por volta
-de 3300 ciclos: 10 sprites por frame já colocam o fim do `draw()` na linha 93 de 154.
-Por isso as pools são pequenas (6 inimigos, 2 lâminas, o herói) e o resto do jogo
-cabe no que sobra. Aumentar `ENEMIES` em `arena.c` é a primeira coisa que derruba o
-frame rate; medi 6 inimigos ≈ 10% de frames perdidos com a arena cheia, 5 ≈ 6%, e 8
-já passa de 20%.
+**The frame budget is sprites.** Measured in the emulator, each `obj()` costs around
+3300 cycles: 10 sprites in a frame already push the end of `draw()` to line 93 of 154.
+That is why the pools are small (`ENEMIES` and `BLADES` in `arena.c`, plus the hero) and
+the rest of the game fits in what is left. Raising `ENEMIES` is the first thing that
+drops the frame rate: with the arena full, 5 enemies measured about 6% of frames lost,
+6 about 10%, and 8 goes past 20%.
 
-**O que um kill deixa cai no fundo, não em sprite.** Gema, cura e ouro são células do
-mapa escritas com `set_tile`, e o tile original volta quando o item é pego. Isso só
-funciona porque o nível tem exatamente o tamanho do mapa de hardware (32x32): numa
-arena maior, uma célula fora da câmera não é escrita. É também por isso que
-`start_run` chama `load_bkg(0)`: o mapa volta como foi desenhado, senão a run
-seguinte começa com as gemas da anterior no chão.
+**What a kill leaves behind lands in the background, not in a sprite.** Gems, hearts and
+gold are map cells written with `set_tile`, and the original tile comes back when the
+item is picked up. This only works because the level is exactly the size of the hardware
+map (32x32): in a larger arena, a cell outside the camera would not be written. It is
+also why `start_run` calls `load_bkg(0)`: the map comes back as it was drawn, otherwise
+the next run starts with the previous run's gems on the floor.
 
-**O ímã virou alcance.** Como o drop é uma célula fixa, a carta SOUL PULL aumenta o
-raio de coleta em vez de puxar o item; é o mesmo upgrade visto do outro lado e não
-custa movimento nenhum.
+**The magnet became reach.** Since a drop is a fixed cell, the SOUL PULL card grows the
+pickup radius instead of pulling the item in; it is the same upgrade seen from the other
+side, and it costs no movement at all.
 
-**Posições são em quartos de pixel.** Um inimigo lento anda 1/4 de pixel por frame em
-vez de ficar parado três frames de cada quatro. A divisão por 4 só acontece na hora
-de desenhar.
+**Positions are in quarter pixels.** A slow enemy walks 1/4 of a pixel per frame instead
+of standing still for three frames out of every four. The division by 4 only happens at
+draw time.
 
-**As telas que não são a run são a janela em (0, 0).** A arena continua carregada
-atrás; voltar é uma chamada, não um reload. Sprites só são submetidos no estado de
-jogo, então nada aparece por cima dos menus.
+**The screens that are not the run are the window layer at (0, 0).** The arena stays
+loaded behind it, so going back is one call and not a reload. Sprites are only submitted
+in the play state, so nothing shows up on top of the menus.
 
-## Ajustes rápidos
+## Quick knobs
 
-| Onde | O quê |
+| Where | What |
 | --- | --- |
-| `arena.c` `ENEMIES` / `BLADES` | tamanho da horda e das lâminas em voo (custo de frame) |
-| `arena.c` `spawning()` | ritmo de spawn e quando cada tipo entra (25 s, 150 s, 300 s) |
-| `arena.c` `foe_life` / `foe_speed` / `foe_harm` | stats dos três tipos |
-| `main.c` `WIN_SECS` | duração da run (600 s) |
-| `cards.c` `cards_take()` | o que cada carta faz, e `card_ready()` os tetos |
-| `cards.c` `REROLL_COST` | o pre�o da m�o nova |
-| `main.c` `FADE_FRAMES` | quantos frames dura cada um dos quatro passos do fade |
+| `arena.c` `ENEMIES` / `BLADES` | size of the horde and of the blades in flight (frame cost) |
+| `arena.c` `spawning()` | spawn pace and when each type joins (25 s, 150 s, 300 s) |
+| `arena.c` `foe_life` / `foe_speed` / `foe_harm` | stats for the three types |
+| `main.c` `WIN_SECS` | run length (600 s) |
+| `cards.c` `cards_take()` | what each card does, and `card_ready()` the caps |
+| `cards.c` `REROLL_COST` | the price of a fresh hand |
+| `main.c` `FADE_FRAMES` | how many frames each of the four fade steps lasts |
 
-## Fora do MVP
+## Out of scope
 
-Sem progressão permanente, sem loja, sem múltiplos personagens ou mapas, sem chefes
-e sem conquistas, como o GDD pediu. Suporte a GBC também fica para depois: o projeto
-está em `color: off` e a arte foi feita para os quatro tons do DMG.
+No permanent progression, no shop, no multiple characters or maps, no bosses and no
+achievements, as the GDD asked. GBC support is for later too: the project is set to
+`color: off` and the art was made for the four DMG shades.
