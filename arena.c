@@ -10,10 +10,11 @@
 #define ARENA_LOW   (12 * STEP)
 #define ARENA_HIGH  ((ARENA_TILES * 8 - 12) * STEP)
 
-/* The horde and the blades are sprites, and a sprite is submitted and moved
-   every frame, so these two are what the frame budget is spent on: ten enemies
-   measured at twice the missed frames of eight and played no harder, because
-   the pressure comes from what the types are rather than how many. Drops are
+/* The horde and the blades are what the frame budget is spent on, and the
+   cost was measured to be the arithmetic, not the sprites: submitting an
+   object is about two scanlines, while stepping the whole horde in 16-bit
+   fields was most of the frame. The fields are bytes now and the horde walks
+   half per frame, which is what holds eight enemies at full speed. Drops are
    cells of the background and cost nothing per frame, which is why there is
    room for enough of them that the gems of a good fight are all still there to
    be walked over. */
@@ -51,17 +52,17 @@
 
 /* Walker, flyer, brute, in that order. A type is stored as its number plus
    one, so zero is a free slot and no enemy is ever type "none". */
-const int foe_tile[3] = { 10, 11, 12 };
+const unsigned char foe_tile[3] = { 10, 11, 12 };
 
 /* Three speeds against the reaper's three: the walker is chaff to weave
    through, the flyer is faster than anyone and has to be shot, and the brute
    keeps exactly the player's pace, so it can be left behind for a while and
    never lost. Every type used to be slower than the player except the flyer,
    and a run ended by walking into the horde rather than by it arriving. */
-const int foe_speed[3] = { 2, 4, 3 };
-const int foe_life[3] = { 2, 1, 6 };
-const int foe_harm[3] = { 1, 1, 2 };
-const int foe_worth[3] = { 1, 1, 3 };
+const unsigned char foe_speed[3] = { 2, 4, 3 };
+const unsigned char foe_life[3] = { 2, 1, 6 };
+const unsigned char foe_harm[3] = { 1, 1, 2 };
+const unsigned char foe_worth[3] = { 1, 1, 3 };
 
 int hero_x;
 int hero_y;
@@ -85,29 +86,32 @@ int blade_area;
 int blade_reach;
 int magnet_reach;
 
-int foe_kind[ENEMIES];
+/* Positions are 16-bit because the arena runs to 1024 quarter pixels; every
+   other field of a mover fits in a byte, and on this CPU that is the whole
+   difference between one load and two on every touch of it. */
+unsigned char foe_kind[ENEMIES];
 int foe_x[ENEMIES];
 int foe_y[ENEMIES];
-int foe_hp[ENEMIES];
-int foe_mark[ENEMIES];
+unsigned char foe_hp[ENEMIES];
+unsigned char foe_mark[ENEMIES];
 
 int blade_x[BLADES];
 int blade_y[BLADES];
 int blade_vx[BLADES];
 int blade_vy[BLADES];
-int blade_life[BLADES];
+unsigned char blade_life[BLADES];
 
 /* A drop is a cell of the level, not a sprite: the tile it put there and the
    tile it covered, so collecting one puts the ground back. The level is the
    size of the hardware map, which is what makes every cell of it writable. */
-int drop_kind[DROPS];
-int drop_tx[DROPS];
-int drop_ty[DROPS];
-int drop_back[DROPS];
-int drop_next;
+unsigned char drop_kind[DROPS];
+unsigned char drop_tx[DROPS];
+unsigned char drop_ty[DROPS];
+unsigned char drop_back[DROPS];
+unsigned char drop_next;
 
 int spawn_timer;
-int walk_frame;
+unsigned char walk_frame;
 
 /* The fraction of a step each mover is carrying, in 256ths. A diagonal step is
    0.707 of a straight one and the quarter pixels a position is kept in cannot
@@ -115,8 +119,13 @@ int walk_frame;
    being thrown away. Rounding it down every frame is what made a diagonal
    slower than a straight line: at speed 4 the step came out 2 where it should
    be 2.83, so walking corner to corner was 29 per cent slow. */
-int hero_run;
-int foe_run[ENEMIES];
+unsigned char hero_run;
+unsigned char foe_run[ENEMIES];
+
+/* Which half of the horde moves this frame. An enemy walks every other frame
+   with a doubled step, so the horde moves at the same speed while each frame
+   pays for half of it: the peak is what the budget is measured against. */
+unsigned char foe_phase;
 
 /* A macro rather than a call: this is the innermost thing the loops do, and a
    call with a 16-bit argument is not cheap on this hardware. The argument is
@@ -126,15 +135,19 @@ int foe_run[ENEMIES];
 /* 0.707 of each speed, in 256ths: the diagonal step that a whole number of
    quarter pixels cannot say. A table and not `speed * 181`, because a 16-bit
    multiply is a called routine on this hardware and this runs for every mover
-   on every frame; the index is a speed, which nothing here lets past 6. */
-const int slant_step[7] = { 0, 181, 362, 543, 724, 905, 1086 };
+   on every frame; the index is a speed, doubled for the movers that walk every
+   other frame, which nothing here lets past 12. */
+const int slant_step[13] = {
+    0, 181, 362, 543, 724, 905, 1086, 1267, 1448, 1629, 1810, 1991, 2172
+};
 
 /* How far a mover goes this frame, keeping what a diagonal leaves behind.
    Written out at both callers rather than made a function of: it would want
    the carrier by address, and a pointer argument is stack traffic on every
    mover of every frame. A straight step needs none of it and takes the plain
-   speed, which is what the else is for. */
-#define STEPPED(speed, slanted, carried, out)     if (slanted) {                                    (carried) += slant_step[speed];               (out) = (carried) >> 8;                       (carried) -= (out) << 8;                  } else {                                          (out) = (speed);                          }
+   speed, which is what the else is for. The carrier is a byte and the table
+   entry is not, so the sum lives in a 16-bit local for exactly one line. */
+#define STEPPED(speed, slanted, carried, out)     if (slanted) {                                    int total = (carried) + slant_step[speed];    (out) = (unsigned char)(total >> 8);          (carried) = (unsigned char)total;         } else {                                          (out) = (speed);                          }
 
 int inside(int value) {
     if (value < ARENA_LOW) return ARENA_LOW;
@@ -171,6 +184,7 @@ void arena_start(void) {
     hero_run = 0;
     drop_next = 0;
     walk_frame = 0;
+    foe_phase = 0;
 
     for (i = 0; i < ENEMIES; i++) {
         foe_kind[i] = 0;
@@ -183,7 +197,7 @@ void arena_start(void) {
 void hero_step(void) {
     int mx = 0;
     int my = 0;
-    int step;
+    unsigned char step;
 
     if (pad(LEFT)) mx = -1;
     if (pad(RIGHT)) mx = 1;
@@ -274,10 +288,15 @@ void hero_hurts(int harm) {
     sfx(SFX_HURT);
 }
 
+/* The locals are bytes wherever the value fits in one: a 16-bit local widens
+   every comparison under it, and this is the loop the frame is spent in. */
 void foes_step(void) {
-    int i, type, step, dx, dy;
+    unsigned char i, type, step;
+    int dx, dy;
 
-    for (i = 0; i < ENEMIES; i++) {
+    foe_phase = foe_phase == 0 ? 1 : 0;
+
+    for (i = foe_phase; i < ENEMIES; i += 2) {
         if (foe_kind[i] == 0) continue;
 
         type = foe_kind[i] - 1;
@@ -285,7 +304,7 @@ void foes_step(void) {
         dx = hero_x - foe_x[i];
         dy = hero_y - foe_y[i];
 
-        STEPPED(foe_speed[type], dx != 0 && dy != 0, foe_run[i], step)
+        STEPPED(foe_speed[type] << 1, dx != 0 && dy != 0, foe_run[i], step)
 
         if (dx > 0) foe_x[i] += step;
         else if (dx < 0) foe_x[i] -= step;
@@ -321,7 +340,8 @@ void blade_at(int tx, int ty) {
    swing already took, so an upgrade to the count spreads the horde rather than
    putting every blade through one walker. */
 void swing(void) {
-    int shot, i, best, span, near;
+    unsigned char shot, i;
+    int best, span, near;
 
     for (i = 0; i < ENEMIES; i++) foe_mark[i] = 0;
 
@@ -351,7 +371,8 @@ void swing(void) {
 }
 
 void blades_step(void) {
-    int i, e, reach, dx, dy;
+    unsigned char i, e;
+    int reach, dx, dy;
 
     blade_timer--;
     if (blade_timer <= 0) {
@@ -376,11 +397,16 @@ void blades_step(void) {
             dy = foe_y[e] - blade_y[i];
             if (AWAY(dy) >= reach) continue;
 
-            foe_hp[e] -= blade_damage;
             blade_life[i] = 0;
 
-            if (foe_hp[e] <= 0) foe_dies(e);
-            else sfx(SFX_HIT);
+            /* Compared before subtracting, so the life never goes below zero
+               and fits in the byte it is kept in. */
+            if (foe_hp[e] <= blade_damage) {
+                foe_dies(e);
+            } else {
+                foe_hp[e] -= blade_damage;
+                sfx(SFX_HIT);
+            }
 
             break;
         }
@@ -402,7 +428,8 @@ void gain_xp(int amount) {
 /* A drop stays where it fell and the reaper's reach is what grows, which is
    the same upgrade seen from the other side and costs no movement at all. */
 void drops_step(void) {
-    int i, dx, dy;
+    unsigned char i;
+    int dx, dy;
 
     for (i = 0; i < DROPS; i++) {
         if (drop_kind[i] == 0) continue;
@@ -470,14 +497,19 @@ void arena_update(void) {
     hero_step();
     foes_step();
     blades_step();
-    drops_step();
+
+    /* Every other frame, on the beat the smaller half of the horde walked:
+       a drop picked up one frame late is invisible, the cost is not. */
+    if (foe_phase == 0) drops_step();
+
     spawning();
 
     if (hero_hurt > 0) hero_hurt--;
 }
 
 void arena_draw(void) {
-    int i, left, top, right, bottom, x, y;
+    unsigned char i;
+    int left, top, right, bottom, x, y;
 
     obj_origin(camera_x(), camera_y() - view_top());
 
