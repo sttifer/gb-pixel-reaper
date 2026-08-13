@@ -18,14 +18,23 @@
 
 #define SFX_PICK 6
 
+/* A slot holds its kind plus one, so zero is an empty slot and no card is ever
+   kind "none": the same shape the arena keeps its enemies in. A hand late in a
+   run can be short, and a slot that says nothing has to be tellable from the
+   first card of the deck. */
 int card_pick[CARD_SHOWN];
+int card_count;
 int card_at;
 
 /* An upgrade that has nothing left to give is not offered, so a card is always
-   worth taking rather than being a slot the player has to spend. */
+   worth taking rather than being a slot the player has to spend.
+   TWIN BLADES stops at BLADES, the number of blades that can be in flight,
+   and not at a number written here as well: a swing only throws what there is
+   a slot for, so a cap of its own lets the count climb past what ever flies
+   and the card promises a blade the player never gets. */
 int card_ready(int kind) {
     if (kind == 1) return blade_period > 12;
-    if (kind == 3) return blade_count < 3;
+    if (kind == 3) return blade_count < BLADES;
     if (kind == 5) return hero_speed < 5;
     if (kind == 6) return magnet_reach < 40 * CARD_UNIT;
     return 1;
@@ -55,27 +64,36 @@ const char *card_line(int kind) {
     }
 }
 
+/* Drawn from the kinds that still have something to give, without replacement,
+   rather than rolled until a fresh one comes up: near the end of a run almost
+   everything is capped, and rolling could run out of tries and fall back on a
+   card that was already maxed. The hand is short instead, and an empty slot is
+   an empty slot. */
 void cards_deal(void) {
-    int i, j, tries, kind, taken;
+    int ready[CARD_KINDS];
+    int i, kind, pick, left;
 
     card_at = 0;
+    card_count = 0;
+    left = 0;
+
+    for (kind = 0; kind < CARD_KINDS; kind++)
+        if (card_ready(kind)) ready[left++] = kind;
 
     for (i = 0; i < CARD_SHOWN; i++) {
-        card_pick[i] = 0;
-
-        for (tries = 0; tries < 24; tries++) {
-            kind = rnd(CARD_KINDS);
-            if (!card_ready(kind)) continue;
-
-            taken = 0;
-            for (j = 0; j < i; j++)
-                if (card_pick[j] == kind) taken = 1;
-
-            if (taken) continue;
-
-            card_pick[i] = kind;
-            break;
+        if (left == 0) {
+            card_pick[i] = 0;
+            continue;
         }
+
+        pick = rnd(left);
+        card_pick[i] = ready[pick] + 1;
+        card_count++;
+
+        /* The hole is filled by the last one, so the rest stay drawable
+           without shifting the whole list down. */
+        left--;
+        ready[pick] = ready[left];
     }
 }
 
@@ -83,7 +101,11 @@ void cards_cursor(void) {
     int i;
 
     for (i = 0; i < CARD_SHOWN; i++)
-        window_tile(0, CARD_ROW + i * CARD_GAP, i == card_at ? CURSOR_TILE : 0);
+        window_tile(
+            0,
+            CARD_ROW + i * CARD_GAP,
+            i == card_at && card_pick[i] != 0 ? CURSOR_TILE : 0
+        );
 }
 
 void cards_show(void) {
@@ -98,18 +120,27 @@ void cards_show(void) {
     window_print_num(16, 2, hero_gold, 3);
 
     for (i = 0; i < CARD_SHOWN; i++) {
+        if (card_pick[i] == 0) continue;
+
         row = CARD_ROW + i * CARD_GAP;
-        window_print(2, row, card_name(card_pick[i]));
-        window_print(2, row + 1, card_line(card_pick[i]));
+        window_print(2, row, card_name(card_pick[i] - 1));
+        window_print(2, row + 1, card_line(card_pick[i] - 1));
     }
 
     cards_cursor();
 
-    window_print(2, 17, "A TAKE");
+    /* A level with nothing left to offer says so, rather than showing a card
+       the player takes believing it still gives something. Three of the seven
+       kinds have no cap, so a hand is always full as the run is balanced now;
+       this is what stops the deal above from having to assume that. */
+    if (card_count == 0) window_print(4, CARD_ROW + 2, "NOTHING LEFT");
+
+    window_print(2, 17, card_count == 0 ? "A GO ON" : "A TAKE");
 
     /* The offer is only on the screen while it can be paid for, so the line
-       answers "can I?" before the button does. */
-    if (hero_gold >= REROLL_COST) {
+       answers "can I?" before the button does. A fresh hand of nothing is not
+       worth gold either. */
+    if (card_count > 0 && hero_gold >= REROLL_COST) {
         window_print(11, 17, "B ROLL");
         window_print_num(18, 17, REROLL_COST, 1);
     }
@@ -119,6 +150,7 @@ void cards_show(void) {
    than partly done when the gold is short: nothing is spent and the cards
    stay as they were. */
 void cards_reroll(void) {
+    if (card_count == 0) return;
     if (hero_gold < REROLL_COST) return;
 
     hero_gold -= REROLL_COST;
@@ -128,18 +160,25 @@ void cards_reroll(void) {
     sfx(SFX_PICK);
 }
 
+/* The cursor moves inside the hand that was dealt, not inside the three rows:
+   a short hand fills the slots from the top, so the filled ones are the first
+   card_count of them. */
 void cards_move(int delta) {
+    if (card_count <= 1) return;
+
     card_at += delta;
 
-    if (card_at < 0) card_at = CARD_SHOWN - 1;
-    if (card_at >= CARD_SHOWN) card_at = 0;
+    if (card_at < 0) card_at = card_count - 1;
+    if (card_at >= card_count) card_at = 0;
 
     sfx(SFX_PICK);
     cards_cursor();
 }
 
 void cards_take(void) {
-    switch (card_pick[card_at]) {
+    if (card_pick[card_at] == 0) return;
+
+    switch (card_pick[card_at] - 1) {
         case 0:
             blade_damage++;
             break;

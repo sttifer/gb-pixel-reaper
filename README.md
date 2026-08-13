@@ -47,24 +47,32 @@ cursor, 17 skull.
 
 ## Decisions worth knowing before you touch anything
 
-**The frame budget is sprites.** Everything that is not drawing already spends about 119
-of the frame's 154 lines, and each sprite on screen costs roughly 7 more. That is why the
-pools are small (`ENEMIES` and `BLADES` in `arena.c`, plus the hero): what is left over is
-about five sprites' worth of room, and `ENEMIES` is the knob that spends it.
+**The frame budget is arithmetic, not sprites.** Submitting an object costs about two of
+the frame's 154 lines, so the dozen sprites a busy screen shows are well under a sixth of
+it. What filled the frame was stepping the horde: this file once kept every field and
+every local in `int`, and the CPU is 8-bit, so each of those cost two loads and two
+comparisons where one would do. Making the fields bytes halved the frames lost; walking
+half the horde per frame with a doubled step (`foe_phase`) removed most of the rest.
 
-Measured headless in binjgb, walking the reaper through a full late arena for 60 seconds
-with the run clock pinned at 400 s, reading the worst frame of each second:
+Measured headless in binjgb, 150 seconds of a real run walking the reaper in a square,
+reading the frame meter once a second:
 
-| `ENEMIES` | worst frame, typical second | frames lost |
-| --- | --- | --- |
-| 2 | 119 of 154 | 0.2% |
-| 6 | 123 of 154 | 2.9% |
-| 8 | 140 of 154 | 3.1% |
-| 10 | 153 of 154 | 11.9% |
+| `ENEMIES` | frames lost in 150 s |
+| --- | --- |
+| 8, with `int` fields | 424 |
+| 8 | 57, nearly all during the opening fade |
+| 10 | 98 |
+| 12 | 627 |
+| 16 | 2745 |
 
-The cliff is between 8 and 10, not between 6 and 8: at 8 the game still holds 60 Hz
-nearly all the time, but with 14 lines to spare. Anything added to the frame after this
-is measured against those 14 lines.
+The cliff is between 10 and 12. `ENEMIES` 8 leaves real room; 10 still holds 60 Hz.
+Anything added to the frame after this is measured against that.
+
+Two rules follow, and they are the ones to keep when adding to the arena: a field or a
+local that fits in a byte is `unsigned char`, positions excepted because the arena runs to
+1024 quarter pixels; and work that every mover does every frame is a candidate for being
+split across two frames, since what the budget is measured against is the worst frame, not
+the average one.
 
 **What a kill leaves behind lands in the background, not in a sprite.** Gems, hearts and
 gold are map cells written with `set_tile`, and the original tile comes back when the
@@ -94,6 +102,7 @@ in the play state, so nothing shows up on top of the menus.
 | `arena.c` `foe_life` / `foe_speed` / `foe_harm` | stats for the three types |
 | `main.c` `WIN_SECS` | run length (600 s) |
 | `cards.c` `cards_take()` | what each card does, and `card_ready()` the caps |
+| `cards.c` `card_ready()` | a capped upgrade stops being dealt; TWIN BLADES caps at `BLADES` |
 | `cards.c` `REROLL_COST` | the price of a fresh hand |
 | `main.c` `FADE_FRAMES` | how many frames each of the four fade steps lasts |
 

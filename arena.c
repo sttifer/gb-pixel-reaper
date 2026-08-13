@@ -19,7 +19,7 @@
    room for enough of them that the gems of a good fight are all still there to
    be walked over. */
 #define ENEMIES 8
-#define BLADES  2
+#define BLADES  3
 #define DROPS   12
 
 #define GEM   1
