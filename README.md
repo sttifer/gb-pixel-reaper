@@ -39,7 +39,7 @@ The attack is automatic: the scythe flies on its own towards the nearest enemy.
 | `font.txt` | the text tiles the HUD and menus print with |
 | `palettes.txt` | the four DMG shades the editor draws with |
 | `sfx.txt` | 8 game effects plus 4 used only by the music |
-| `music.txt` | two songs: menu (song 0) and run (song 1) |
+| `music.txt` | two songs: menu (song 0) and run (song 1), whose order is A A B B |
 
 Tiles: 0 empty, 1-3 floor, 4 wall, 5 blade, 6 XP gem, 7 heal, 8-9 hero (standing and
 walking), 10-12 enemies (common, fast, tank), 13 gold, 14-15 bar full and empty, 16
@@ -105,6 +105,7 @@ in the play state, so nothing shows up on top of the menus.
 | `cards.c` `card_ready()` | a capped upgrade stops being dealt; TWIN BLADES caps at `BLADES` |
 | `cards.c` `REROLL_COST` | the price of a fresh hand |
 | `main.c` `FADE_FRAMES` | how many frames each of the four fade steps lasts |
+| `main.c` `PAUSE_ITEMS` | the pause menu's entries, laid out from `PAUSE_ROW` and `PAUSE_GAP` |
 
 ## Out of scope
 

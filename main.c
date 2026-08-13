@@ -57,11 +57,29 @@
 #define SFX_CHOOSE 6
 #define SFX_DEATH  7
 
+/* The pause screen's entries, laid out from one row and one gap the way the
+   card screen's are, so a fourth is a number here and not a fourth branch. */
+#define PAUSE_ITEMS 3
+#define PAUSE_ROW   12
+#define PAUSE_GAP   2
+
+#define PAUSE_GO_ON 0
+#define PAUSE_MUSIC 1
+#define PAUSE_QUIT  2
+
 int screen_mode;
 int run_secs;
 int run_from;
 int held_at;
 int pause_at;
+
+/* Whether the player wants music at all, and the song the screen they are on
+   would be playing if they do. Kept side by side because switching music back
+   on has to start something, and by then the screen that asked for it is long
+   past. Not saved: the cartridge has SRAM but this game writes nothing to it
+   yet, so the choice lasts as long as the console is on. */
+int music_on;
+int song_now;
 
 int fade_step;
 int fade_way;
@@ -163,10 +181,28 @@ void run_stats(int row) {
     window_print_num(13, row + 6, hero_gold, 3);
 }
 
+/* Every screen asks for its song through here rather than calling music()
+   itself, so switching music off is one place and switching it back on knows
+   what should be playing. The driver ignores a song it is already on, so
+   asking again on every arrival costs nothing. */
+void play_song(int song) {
+    song_now = song;
+
+    if (music_on) music(song);
+    else music_stop();
+}
+
+void music_toggle(void) {
+    music_on = music_on == 0 ? 1 : 0;
+
+    if (music_on) music(song_now);
+    else music_stop();
+}
+
 void show_title(void) {
     screen_mode = SCREEN_TITLE;
 
-    music(SONG_MENU);
+    play_song(SONG_MENU);
     window(0, 0);
     window_clear();
 
@@ -182,7 +218,7 @@ void show_title(void) {
 void show_over(void) {
     screen_mode = SCREEN_OVER;
 
-    music(SONG_MENU);
+    play_song(SONG_MENU);
     window(0, 0);
     window_clear();
 
@@ -196,7 +232,7 @@ void show_over(void) {
 void show_win(void) {
     screen_mode = SCREEN_WIN;
 
-    music(SONG_MENU);
+    play_song(SONG_MENU);
     window(0, 0);
     window_clear();
 
@@ -207,9 +243,22 @@ void show_win(void) {
     pad_clear();
 }
 
+/* The switch reads as its own label, and it is printed with a trailing space:
+   without it, turning music back on leaves the F of OFF sitting on the row. */
+void pause_music_line(void) {
+    window_print(3, PAUSE_ROW + PAUSE_MUSIC * PAUSE_GAP, music_on ? "MUSIC ON " : "MUSIC OFF");
+}
+
+void pause_cursor(void) {
+    int i;
+
+    for (i = 0; i < PAUSE_ITEMS; i++)
+        window_tile(1, PAUSE_ROW + i * PAUSE_GAP, i == pause_at ? PICK_TILE : 0);
+}
+
 void show_pause(void) {
     screen_mode = SCREEN_PAUSE;
-    pause_at = 0;
+    pause_at = PAUSE_GO_ON;
 
     window(0, 0);
     window_clear();
@@ -225,11 +274,11 @@ void show_pause(void) {
     window_print(3, 8, "LEVEL");
     window_print_num(13, 8, hero_level, 3);
 
-    window_print(3, 12, "CONTINUE");
-    window_print(3, 14, "QUIT RUN");
+    window_print(3, PAUSE_ROW + PAUSE_GO_ON * PAUSE_GAP, "CONTINUE");
+    pause_music_line();
+    window_print(3, PAUSE_ROW + PAUSE_QUIT * PAUSE_GAP, "QUIT RUN");
 
-    window_tile(1, 12, PICK_TILE);
-    window_tile(1, 14, 0);
+    pause_cursor();
 
     pad_clear();
 }
@@ -271,7 +320,7 @@ void start_run(void) {
     run_from = seconds();
     run_secs = 0;
 
-    music(SONG_RUN);
+    play_song(SONG_RUN);
     screen_mode = SCREEN_PLAY;
     hud_frame();
     hud_refresh();
@@ -364,10 +413,15 @@ void play_frame(void) {
 }
 
 void pause_frame(void) {
-    if (pad_hit(UP) || pad_hit(DOWN)) {
-        pause_at = pause_at == 0 ? 1 : 0;
-        window_tile(1, 12, pause_at == 0 ? PICK_TILE : 0);
-        window_tile(1, 14, pause_at == 1 ? PICK_TILE : 0);
+    if (pad_hit(UP)) {
+        pause_at = pause_at == 0 ? PAUSE_ITEMS - 1 : pause_at - 1;
+        pause_cursor();
+        sfx(SFX_CHOOSE);
+    }
+
+    if (pad_hit(DOWN)) {
+        pause_at = pause_at == PAUSE_ITEMS - 1 ? 0 : pause_at + 1;
+        pause_cursor();
         sfx(SFX_CHOOSE);
     }
 
@@ -376,12 +430,25 @@ void pause_frame(void) {
         return;
     }
 
-    if (pad_hit(A)) {
-        fade_to(pause_at == 0 ? GO_RESUME : GO_TITLE);
+    if (!pad_hit(A)) return;
+
+    if (pause_at == PAUSE_GO_ON) {
+        fade_to(GO_RESUME);
+    } else if (pause_at == PAUSE_MUSIC) {
+        /* The one entry that acts where it stands. A fade would take the screen
+           away from a switch the player may want to try both ways. */
+        music_toggle();
+        pause_music_line();
+        sfx(SFX_CHOOSE);
+    } else {
+        fade_to(GO_TITLE);
     }
 }
 
 void init(void) {
+    /* Before the first screen, because putting one up asks for its song. */
+    music_on = 1;
+
     load_bkg(0);
     show_title();
 
