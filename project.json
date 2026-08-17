@@ -1,8 +1,9 @@
 {
-  "format": 4,
+  "format": 5,
   "name": "Pixel Reaper",
   "color": "off",
   "text": true,
+  "sprites": "8x8",
   "author": "",
   "files": [
     "main.c",

@@ -1,5 +1,6 @@
 # dotmatrix background maps
 # one tile number per cell, two hex digits each, size in the header
+# a cell may say how it is drawn: 02:3 is palette 3, and h, v and f follow it
 # a game switches between them with load_bkg
 
 map 0 32x32

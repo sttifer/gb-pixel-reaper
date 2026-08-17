@@ -1,6 +1,7 @@
 # dotmatrix tile sheet
 # one character per pixel: . 1 2 3 from lightest to darkest
-# a tile header may carry flags and a palette, as in: tile 2 flags 0 pal obj 1
+# a tile header may carry flags, a palette and front, as in: tile 2 flags 0 pal obj 1
+# front means the tile is drawn over sprites, on a colour console
 
 tile 0
 ........
