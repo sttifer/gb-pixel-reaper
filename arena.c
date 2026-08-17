@@ -212,6 +212,31 @@ void hero_step(void) {
         return;
     }
 
+    /*
+     * On a diagonal the two axes are levelled below the pixel, mirrored when
+     * they are going opposite ways.
+     *
+     * One carrier already answers for the pair, so both axes are given the same
+     * amount every frame. What they are not given is the same starting point:
+     * the position is in quarter pixels, the drawn pixel changes when those
+     * cross, and walking straight advances one axis while leaving the other
+     * where it was. `inside` holding an axis at the arena's edge does the same.
+     * Once the two quarters disagree, each axis crosses into its next pixel on a
+     * different frame, and what the hero walks is a staircase of one-axis steps
+     * rather than a diagonal: at sixty frames a second that is a pixel of
+     * sideways wobble, and it is read as the hero shaking. It does not come
+     * back on its own, which is why this is here and not in `arena_start`.
+     *
+     * Nothing moves: only the quarters below the pixel are touched.
+     */
+    if (mx != 0 && my != 0) {
+        int under = hero_x & (STEP - 1);
+
+        if (mx != my) under = (STEP - under) & (STEP - 1);
+
+        hero_y = (hero_y & ~(STEP - 1)) | under;
+    }
+
     /* Both axes take the same amount, so one carrier answers for the pair. */
     STEPPED(hero_speed, mx != 0 && my != 0, hero_run, step)
 
